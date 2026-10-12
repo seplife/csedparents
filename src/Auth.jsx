@@ -46,6 +46,8 @@ export function Login() {
     } catch (err) {
       const msg = String(err?.message || '')
       if (msg === 'CONFIRM_EMAIL') setError("Le compte n'a pas pu être ouvert. Signalez-le à l'établissement.")
+      else if (/database error|invalid.*(code|numéro)|code d'activation/i.test(msg))
+        setError("Numéro ou code d'activation incorrect. Vérifiez le SMS reçu de l'établissement.")
       else if (/already registered|already been registered/i.test(msg))
         setError('Ce numéro a déjà un compte. Utilisez « J\'ai déjà un compte ».')
       else if (/invalid login credentials/i.test(msg)) setError('Numéro ou mot de passe incorrect. Vérifiez-les puis réessayez.')
@@ -117,8 +119,12 @@ export function Activation({ onDone }) {
     try {
       if (await activer(code)) return onDone()
       setError("Code d'activation incorrect. Vérifiez le code remis par l'établissement.")
-    } catch {
-      setError('Activation impossible. Vérifiez votre connexion internet.')
+    } catch (err) {
+      if (/trop_de_tentatives/.test(String(err?.message || ''))) {
+        setError('Trop de tentatives. Réessayez dans 15 minutes ou contactez le secrétariat.')
+      } else {
+        setError('Activation impossible. Vérifiez votre connexion internet.')
+      }
     }
     setBusy(false)
   }

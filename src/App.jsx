@@ -26,7 +26,7 @@ export default function App() {
     setError('')
     try {
       const code = takePending()
-      if (code) await activer(code)
+      if (code) await activer(code).catch(() => false)
       const list = await loadEleves()
       if (!list.length) {
         setEleves([])

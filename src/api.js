@@ -30,7 +30,11 @@ export async function connecter(telephone, motDePasse) {
 
 export async function creerCompte(telephone, code, motDePasse) {
   pendingCode = code
-  const { data, error } = await sb.auth.signUp({ email: mail(telephone), password: motDePasse })
+  const { data, error } = await sb.auth.signUp({
+    email: mail(telephone),
+    password: motDePasse,
+    options: { data: { code: code.trim() } },
+  })
   if (error) {
     pendingCode = null
     throw error

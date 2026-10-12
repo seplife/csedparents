@@ -51,7 +51,7 @@ create trigger sms_file_envoi after insert on sms_file
   for each row execute function supabase_functions.http_request(
     'https://cbcsadiglaxkhkpsukss.supabase.co/functions/v1/envoyer-sms',
     'POST',
-    '{"Content-Type":"application/json","x-webhook-secret":"fjgui<gfbjbv<kjb<vjkb<mvj1232463v<wvbjh<bvjh"}',
+    '{"Content-Type":"application/json","x-webhook-secret":"be53356aeb343c02d31448f1a6a763db0b2a1208f9faea7884c170c8a1f93016"}',
     '{}',
     '5000'
   );
@@ -61,6 +61,6 @@ create trigger sms_file_envoi after insert on sms_file
 -- select cron.schedule('relance-sms', '*/10 * * * *', $$
 --   select net.http_post(
 --     url := 'https://cbcsadiglaxkhkpsukss.supabase.co/functions/v1/envoyer-sms',
---     headers := '{"Content-Type":"application/json","x-webhook-secret":"A_REMPLACER_SECRET"}'::jsonb,
+--     headers := '{"Content-Type":"application/json","x-webhook-secret":"be53356aeb343c02d31448f1a6a763db0b2a1208f9faea7884c170c8a1f93016"}'::jsonb,
 --     body := '{}'::jsonb);
 -- $$);
