@@ -1,33 +1,52 @@
-// Edge Function : envoie par SMS (Twilio) le code d'activation des familles.
+// Edge Function : envoie par WhatsApp (API Cloud de Meta) le code d'activation des familles.
 // Appelée par le déclencheur SQL (corps webhook {type, record}) ou par la relance (corps vide).
+//
+// Secrets à définir (supabase secrets set ...) :
+//   WEBHOOK_SECRET            secret partagé avec le déclencheur SQL
+//   WHATSAPP_TOKEN            jeton d'accès permanent (utilisateur système Meta)
+//   WHATSAPP_PHONE_ID         identifiant du numéro WhatsApp Business expéditeur
+//   WHATSAPP_TEMPLATE         nom du modèle approuvé (ex. code_activation_csed)
+//   WHATSAPP_LANG             code langue du modèle (défaut : fr)
+//   WHATSAPP_TEMPLATE_AUTH    "true" si le modèle est de catégorie « Authentification » (bouton copier le code)
+//   INDICATIF_PAYS            indicatif sans « + » (défaut : 225)
+//
+// Le modèle doit contenir une variable {{1}} = le code d'activation.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const MAX_TENTATIVES = 5
+const INDICATIF = Deno.env.get('INDICATIF_PAYS') ?? '225'
 
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
-/** 0700000000 -> +2250700000000 ; 2250700000000 -> +2250700000000 */
+/** 0700000000 -> 2250700000000 (format attendu par WhatsApp : chiffres, sans « + ») */
 function formatNumero(tel: string): string {
   const d = tel.replace(/\D/g, '')
-  if (d.startsWith('225') && d.length >= 12) return '+' + d
-  return '+225' + d
+  if (d.startsWith(INDICATIF) && d.length >= INDICATIF.length + 8) return d
+  return INDICATIF + d
 }
 
-async function envoyer(numero: string, message: string) {
-  const sid = Deno.env.get('TWILIO_ACCOUNT_SID')!
-  const token = Deno.env.get('TWILIO_AUTH_TOKEN')!
-  const service = Deno.env.get('TWILIO_MESSAGING_SERVICE_SID') // optionnel
-  const from = Deno.env.get('TWILIO_FROM') // numéro Twilio ou nom d'expéditeur
-  const params = new URLSearchParams({ To: numero, Body: message })
-  if (service) params.set('MessagingServiceSid', service)
-  else params.set('From', from!)
-
-  const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+async function envoyer(numero: string, code: string) {
+  const token = Deno.env.get('WHATSAPP_TOKEN')!
+  const phoneId = Deno.env.get('WHATSAPP_PHONE_ID')!
+  const components: unknown[] = [{ type: 'body', parameters: [{ type: 'text', text: code }] }]
+  if (Deno.env.get('WHATSAPP_TEMPLATE_AUTH') === 'true') {
+    components.push({ type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] })
+  }
+  const r = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
     method: 'POST',
-    headers: { Authorization: `Basic ${btoa(`${sid}:${token}`)}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: numero,
+      type: 'template',
+      template: {
+        name: Deno.env.get('WHATSAPP_TEMPLATE')!,
+        language: { code: Deno.env.get('WHATSAPP_LANG') ?? 'fr' },
+        components,
+      },
+    }),
   })
-  if (!r.ok) throw new Error(`Twilio ${r.status}: ${await r.text()}`)
+  if (!r.ok) throw new Error(`WhatsApp ${r.status}: ${await r.text()}`)
 }
 
 Deno.serve(async (req) => {
@@ -51,9 +70,8 @@ Deno.serve(async (req) => {
   let ok = 0
   for (const l of lignes) {
     const f = (l as any).familles
-    const message = `CSED Parents+ : votre code d'activation est ${f.code_activation}. Ouvrez l'application, choisissez « Première connexion » et saisissez ce code.`
     try {
-      await envoyer(formatNumero(f.telephone), message)
+      await envoyer(formatNumero(f.telephone), f.code_activation)
       await supabase.from('sms_file').update({ statut: 'envoye', envoye_le: new Date().toISOString(), erreur: null, tentatives: l.tentatives + 1 }).eq('id', l.id)
       ok++
     } catch (e) {
@@ -65,5 +83,5 @@ Deno.serve(async (req) => {
       }).eq('id', l.id)
     }
   }
-  return new Response(`${ok}/${lignes.length} SMS envoyés`)
+  return new Response(`${ok}/${lignes.length} messages WhatsApp envoyés`)
 })
