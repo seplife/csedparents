@@ -1,6 +1,11 @@
 -- CSED Parents+ : code d'activation automatique + envoi par SMS
 -- À exécuter dans Supabase > SQL Editor APRÈS schema.sql.
--- Avant d'exécuter : remplacez les deux valeurs « A_REMPLACER » plus bas.
+--
+-- SETUP : copiez ce fichier en sms_activation.sql et remplacez les deux
+-- valeurs A_REMPLACER avant d'exécuter (sms_activation.sql est dans .gitignore).
+--
+--   A_REMPLACER_REF    → référence du projet Supabase  (ex. cbcsadiglaxkhkpsukss)
+--   A_REMPLACER_SECRET → valeur de WEBHOOK_SECRET      (supabase secrets list)
 
 -- ---------- 1. Code d'activation généré automatiquement ----------
 -- Si l'école n'en fournit pas, un code à 6 chiffres est créé à l'enregistrement du parent.
@@ -45,13 +50,12 @@ create trigger familles_sms after insert on familles
   for each row execute function enfiler_sms_activation();
 
 -- ---------- 3. Appel de l'Edge Function à chaque nouvel SMS ----------
--- Remplacez A_REMPLACER_REF par la référence du projet (cbcsadiglaxkhkpsukss)
--- et A_REMPLACER_SECRET par le même secret que WEBHOOK_SECRET (voir README).
+-- Remplacez A_REMPLACER_REF et A_REMPLACER_SECRET avant d'exécuter.
 create trigger sms_file_envoi after insert on sms_file
   for each row execute function supabase_functions.http_request(
-    'https://cbcsadiglaxkhkpsukss.supabase.co/functions/v1/envoyer-sms',
+    'https://A_REMPLACER_REF.supabase.co/functions/v1/envoyer-sms',
     'POST',
-    '{"Content-Type":"application/json","x-webhook-secret":"be53356aeb343c02d31448f1a6a763db0b2a1208f9faea7884c170c8a1f93016"}',
+    '{"Content-Type":"application/json","x-webhook-secret":"A_REMPLACER_SECRET"}',
     '{}',
     '5000'
   );
@@ -60,7 +64,7 @@ create trigger sms_file_envoi after insert on sms_file
 -- Activez d'abord les extensions pg_cron et pg_net (Database > Extensions), puis décommentez :
 -- select cron.schedule('relance-sms', '*/10 * * * *', $$
 --   select net.http_post(
---     url := 'https://cbcsadiglaxkhkpsukss.supabase.co/functions/v1/envoyer-sms',
---     headers := '{"Content-Type":"application/json","x-webhook-secret":"be53356aeb343c02d31448f1a6a763db0b2a1208f9faea7884c170c8a1f93016"}'::jsonb,
+--     url := 'https://A_REMPLACER_REF.supabase.co/functions/v1/envoyer-sms',
+--     headers := '{"Content-Type":"application/json","x-webhook-secret":"A_REMPLACER_SECRET"}'::jsonb,
 --     body := '{}'::jsonb);
 -- $$);

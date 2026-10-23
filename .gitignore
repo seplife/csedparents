@@ -1,5 +1,8 @@
-﻿node_modules/
+node_modules/
 dist/
 .env
 .env.*
 !.env.exemple
+
+# Fichiers SQL contenant des secrets en clair (ref projet + webhook secret)
+supabase/sms_activation.sql
