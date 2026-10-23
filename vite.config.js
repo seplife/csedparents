@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// base : le site est servi depuis https://seplife.github.io/csedparents/
-export default defineConfig({ base: '/csedparents/', plugins: [react()] })
+// base '/' : Vercel sert depuis la racine (csedparents.vercel.app/)
+// Pour GitHub Pages (seplife.github.io/csedparents/), remettre base: '/csedparents/'
+export default defineConfig({ base: '/', plugins: [react()] })
+
