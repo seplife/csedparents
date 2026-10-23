@@ -4,7 +4,7 @@
 -- SETUP : copiez ce fichier en sms_activation.sql et remplacez les deux
 -- valeurs A_REMPLACER avant d'exécuter (sms_activation.sql est dans .gitignore).
 --
---   A_REMPLACER_REF    → référence du projet Supabase  (ex. cbcsadiglaxkhkpsukss)
+--   A_REMPLACER_REF    → référence du projet Supabase  (ex. gwzvoiukzwdqskcjpghk)
 --   A_REMPLACER_SECRET → valeur de WEBHOOK_SECRET      (supabase secrets list)
 
 -- ---------- 1. Code d'activation généré automatiquement ----------
