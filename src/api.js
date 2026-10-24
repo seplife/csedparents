@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
+// La clé anon Supabase est publique par conception (elle active la RLS côté client).
+// Ces valeurs par défaut permettent le fonctionnement sans configuration .env.
 const url = import.meta.env.VITE_SUPABASE_URL
+  || 'https://gwzvoiukzwdqskcjpghk.supabase.co'
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
+  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3enZvaXVrendkcXNrY2pwZ2hrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjI5NTMsImV4cCI6MjEwODMzODk1M30.4SCxbVjT3JAMSw562cLjaRatAw9IqOSWENG4JFsrNR4'
 
 export const configured = Boolean(url && key)
 export const sb = configured ? createClient(url, key) : null
