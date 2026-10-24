@@ -24,7 +24,7 @@ export function Message({ title, children, action }) {
   )
 }
 
-export function Login() {
+export function Login({ onGoAdmin }) {
   const [premiere, setPremiere] = useState(false)
   const [tel, setTel] = useState('')
   const [code, setCode] = useState('')
@@ -47,7 +47,7 @@ export function Login() {
       const msg = String(err?.message || '')
       if (msg === 'CONFIRM_EMAIL') setError("Le compte n'a pas pu être ouvert. Signalez-le à l'établissement.")
       else if (/database error|invalid.*(code|numéro)|code d'activation/i.test(msg))
-        setError("Numéro ou code d'activation incorrect. Vérifiez le SMS reçu de l'établissement.")
+        setError("Numéro ou code d'activation incorrect. Vérifiez le code remis par l'établissement.")
       else if (/already registered|already been registered/i.test(msg))
         setError('Ce numéro a déjà un compte. Utilisez « J\'ai déjà un compte ».')
       else if (/invalid login credentials/i.test(msg)) setError('Numéro ou mot de passe incorrect. Vérifiez-les puis réessayez.')
@@ -63,7 +63,7 @@ export function Login() {
         <h1>{premiere ? 'Première connexion' : 'Connexion parent'}</h1>
         <p className="muted">
           {premiere
-            ? "Créez votre mot de passe avec le code d'activation reçu par SMS sur le numéro enregistré par l'établissement."
+            ? "Créez votre mot de passe avec le code d'activation remis par l'établissement (reçu par WhatsApp ou au secrétariat)."
             : 'Suivez la scolarité de vos enfants.'}
         </p>
         <form onSubmit={submit} noValidate>
@@ -101,6 +101,18 @@ export function Login() {
         >
           {premiere ? "J'ai déjà un compte" : 'Première connexion ? Activer mon compte'}
         </button>
+
+        {onGoAdmin && (
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--line)', textAlign: 'center' }}>
+            <button
+              className="linkbtn small"
+              style={{ color: 'var(--ink2)', textDecoration: 'none' }}
+              onClick={onGoAdmin}
+            >
+              🏛️ Accès Établissement (CSE Divo — Gestion)
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

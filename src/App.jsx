@@ -2,10 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { activer, configured, deconnecter, loadData, loadEleves, sb, takePending } from './api.js'
 import { Activation, Login, Message } from './Auth.jsx'
 import Dashboard from './Dashboard.jsx'
+import AdminApp from './Admin.jsx'
 
 const NETWORK = 'Chargement impossible. Vérifiez votre connexion internet.'
 
 export default function App() {
+  const [mode, setMode] = useState(() =>
+    window.location.hash.includes('admin') || window.location.pathname.startsWith('/admin') ? 'admin' : 'parent'
+  )
   const [session, setSession] = useState(undefined) // undefined = vérification en cours
   const [stage, setStage] = useState('loading') // loading | out | activation | offline | ready
   const [eleves, setEleves] = useState([])
@@ -13,6 +17,14 @@ export default function App() {
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    const handleHash = () => {
+      setMode(window.location.hash.includes('admin') ? 'admin' : 'parent')
+    }
+    window.addEventListener('hashchange', handleHash)
+    return () => window.removeEventListener('hashchange', handleHash)
+  }, [])
 
   useEffect(() => {
     if (!configured) return
@@ -68,8 +80,29 @@ export default function App() {
       </Message>
     )
   }
+
+  if (mode === 'admin') {
+    return (
+      <AdminApp
+        onSwitchToParent={() => {
+          setMode('parent')
+          window.location.hash = ''
+        }}
+      />
+    )
+  }
+
   if (stage === 'loading') return <div className="center">Chargement…</div>
-  if (stage === 'out') return <Login />
+  if (stage === 'out') {
+    return (
+      <Login
+        onGoAdmin={() => {
+          setMode('admin')
+          window.location.hash = '#admin'
+        }}
+      />
+    )
+  }
   if (stage === 'activation') return <Activation onDone={() => load(0)} />
   if (stage === 'offline') {
     return (
