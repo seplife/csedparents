@@ -35,7 +35,7 @@ function waLink(tel, text) {
 }
 
 function messageWhatsApp(parent, eleve, code) {
-  return `Bonjour ${parent.nom_parent || 'Parent d\'élève'},\n\nLe Collège Saint Édouard de Divo (CSED) a créé votre accès à CSED Parents+ pour le suivi de votre enfant ${eleve.prenom} ${eleve.nom} (${eleve.classe}).\n\n🔑 Votre CODE D'ACTIVATION est : ${code}\n\nPour créer votre mot de passe et suivre sa scolarité (notes, emploi du temps, absences, scolarité) :\n1. Rendez-vous sur : https://csedparents.vercel.app\n2. Cliquez sur « Première connexion ? Activer mon compte »\n3. Saisissez votre numéro (${cleanTel(parent.telephone)}), ce code d'activation et votre nouveau mot de passe.`
+  return `Bonjour ${parent.nom_parent || 'Parent d\'élève'},\n\nLe Cours Secondaire Élites de Divo (CSED) a créé votre accès à CSED Parents+ pour le suivi de votre enfant ${eleve.prenom} ${eleve.nom} (${eleve.classe}).\n\n🔑 Votre CODE D'ACTIVATION est : ${code}\n\nPour créer votre mot de passe et suivre sa scolarité (notes, emploi du temps, absences, scolarité) :\n1. Rendez-vous sur : https://csedparents.vercel.app\n2. Cliquez sur « Première connexion ? Activer mon compte »\n3. Saisissez votre numéro (${cleanTel(parent.telephone)}), ce code d'activation et votre nouveau mot de passe.`
 }
 
 export default function AdminApp({ onSwitchToParent }) {
