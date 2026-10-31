@@ -242,3 +242,59 @@ export async function supprimerEleve(eleveId) {
   if (error) throw error
 }
 
+/**
+ * Diagnostic complet d'une famille à partir de son numéro de téléphone.
+ * Retourne l'état de la famille, du compte auth et des élèves rattachés.
+ */
+export async function diagnostiquerFamille(telephone) {
+  const tel = telephone.replace(/\D/g, '').replace(/^225/, '')
+
+  // 1. Chercher la famille dans la table familles
+  const { data: famille, error: errFamille } = await sb
+    .from('familles')
+    .select('*, eleves(*)')
+    .or(`telephone.eq.${tel},telephone.eq.225${tel}`)
+    .maybeSingle()
+
+  if (errFamille) throw errFamille
+
+  if (!famille) {
+    return { trouve: false, telephone: tel }
+  }
+
+  // 2. Vérifier si un compte auth existe pour ce numéro
+  const emailAttendu = tel + '@' + EMAIL_DOMAIN
+  let compteAuth = null
+  try {
+    // On tente une connexion bidon pour détecter si l'email est connu
+    // (on ne peut pas lire auth.users depuis le client anon)
+    // On utilise à la place l'existence de user_id dans familles
+    compteAuth = famille.user_id
+      ? { existe: true, user_id: famille.user_id }
+      : { existe: false }
+  } catch {
+    compteAuth = { existe: false }
+  }
+
+  return {
+    trouve: true,
+    telephone: tel,
+    emailAttendu,
+    famille: {
+      id: famille.id,
+      nom_parent: famille.nom_parent,
+      telephone: famille.telephone,
+      code_activation: famille.code_activation,
+      user_id: famille.user_id,
+      cree_le: famille.cree_le,
+    },
+    compteAuth,
+    eleves: famille.eleves || [],
+    diagnostics: {
+      codePresentEnBase: Boolean(famille.code_activation),
+      compteDejaActif: Boolean(famille.user_id),
+      eleveRattache: (famille.eleves || []).length > 0,
+    },
+  }
+}
+

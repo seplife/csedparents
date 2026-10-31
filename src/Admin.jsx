@@ -4,6 +4,7 @@ import {
   adminCreerCompte,
   checkIsAdmin,
   deconnecter,
+  diagnostiquerFamille,
   inscrireEleveAdmin,
   loadAdminFamilles,
   loadAdminSmsQueue,
@@ -42,13 +43,19 @@ export default function AdminApp({ onSwitchToParent }) {
   const [user, setUser] = useState(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('inscription') // inscription | repertoire | sms | aide
+  const [tab, setTab] = useState('inscription') // inscription | repertoire | sms | diagnostic | aide
 
   // Données
   const [familles, setFamilles] = useState([])
   const [smsQueue, setSmsQueue] = useState([])
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState({ type: '', text: '' })
+
+  // Diagnostic
+  const [diagTel, setDiagTel] = useState('')
+  const [diagResult, setDiagResult] = useState(null)
+  const [diagBusy, setDiagBusy] = useState(false)
+  const [diagError, setDiagError] = useState('')
 
   // Auth form
   const [email, setEmail] = useState('')
@@ -207,6 +214,42 @@ export default function AdminApp({ onSwitchToParent }) {
       setFeedback({ type: 'err', text: 'Erreur : ' + err.message })
     } finally {
       setBusy(false)
+    }
+  }
+
+  // --- Diagnostic famille ---
+  async function handleDiagnostic(e) {
+    e.preventDefault()
+    if (diagTel.replace(/\D/g, '').length < 8) {
+      setDiagError('Saisissez un numéro de téléphone valide.')
+      return
+    }
+    setDiagBusy(true)
+    setDiagError('')
+    setDiagResult(null)
+    try {
+      const result = await diagnostiquerFamille(diagTel)
+      setDiagResult(result)
+    } catch (err) {
+      setDiagError('Erreur lors du diagnostic : ' + (err.message || String(err)))
+    } finally {
+      setDiagBusy(false)
+    }
+  }
+
+  async function handleDiagRegenerer(familleId) {
+    if (!confirm('Générer un nouveau code ? L\'ancien sera invalidé.')) return
+    try {
+      const newCode = await regenererCodeActivation(familleId)
+      setDiagResult((prev) => ({
+        ...prev,
+        famille: { ...prev.famille, code_activation: newCode, user_id: null },
+        diagnostics: { ...prev.diagnostics, compteDejaActif: false },
+      }))
+      setFeedback({ type: 'ok', text: `Nouveau code généré : ${newCode}. Transmettez-le au parent.` })
+      await refreshData()
+    } catch (err) {
+      setDiagError('Impossible de regénérer le code : ' + err.message)
     }
   }
 
@@ -387,8 +430,11 @@ export default function AdminApp({ onSwitchToParent }) {
         <button aria-pressed={tab === 'sms'} onClick={() => { setTab('sms'); refreshData() }}>
           📨 File WhatsApp ({smsQueue.length})
         </button>
+        <button aria-pressed={tab === 'diagnostic'} onClick={() => setTab('diagnostic')}>
+          🔍 Diagnostic
+        </button>
         <button aria-pressed={tab === 'aide'} onClick={() => setTab('aide')}>
-          ℹ️ Guide & Secrets
+          ℹ️ Guide &amp; Secrets
         </button>
       </div>
 
@@ -898,7 +944,182 @@ export default function AdminApp({ onSwitchToParent }) {
         </div>
       )}
 
-      {/* ==================== TAB 4 : GUIDE & SECRETS ==================== */}
+      {/* ==================== TAB 4 : DIAGNOSTIC ==================== */}
+      {tab === 'diagnostic' && (
+        <div>
+          <div className="panel" style={{ marginBottom: 16 }}>
+            <h2>🔍 Diagnostic d'accès parent</h2>
+            <p className="muted small" style={{ marginBottom: 16 }}>
+              Saisissez le numéro de téléphone du parent pour inspecter l'état de son compte et
+              comprendre pourquoi son code d'activation ne fonctionne pas.
+            </p>
+            <form onSubmit={handleDiagnostic} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <label htmlFor="diag-tel" className="small" style={{ fontWeight: 700, display: 'block', marginBottom: 4 }}>
+                  Numéro de téléphone du parent
+                </label>
+                <input
+                  id="diag-tel"
+                  type="tel"
+                  placeholder="0779535795"
+                  value={diagTel}
+                  onChange={(e) => setDiagTel(e.target.value)}
+                  style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)' }}
+                />
+              </div>
+              <button className="btn" type="submit" disabled={diagBusy} style={{ padding: '10px 20px' }}>
+                {diagBusy ? 'Recherche…' : '🔍 Analyser'}
+              </button>
+            </form>
+            {diagError && (
+              <p className="err" role="alert" style={{ marginTop: 12 }}>{diagError}</p>
+            )}
+          </div>
+
+          {diagResult && !diagResult.trouve && (
+            <div className="panel" style={{ border: '2px solid var(--red)', background: 'var(--red-soft)' }}>
+              <h3 style={{ color: 'var(--red)', margin: '0 0 8px' }}>❌ Famille introuvable</h3>
+              <p className="small">
+                Aucune famille avec le numéro <strong>0{diagResult.telephone}</strong> n'existe dans la base de données.
+              </p>
+              <p className="small muted" style={{ marginTop: 6 }}>
+                → Le parent n'a pas encore été inscrit. Utilisez l'onglet <strong>« ✍️ Inscrire un élève »</strong> pour l'ajouter.
+              </p>
+            </div>
+          )}
+
+          {diagResult && diagResult.trouve && (() => {
+            const { famille, diagnostics, eleves, emailAttendu } = diagResult
+            const code = famille.code_activation || '–'
+
+            const checks = [
+              {
+                ok: diagnostics.eleveRattache,
+                label: 'Élève(s) rattaché(s) à la famille',
+                fix: 'Aucun élève n\'est rattaché à cette famille. Inscrivez l\'élève dans l\'onglet « ✍️ Inscrire ».',
+              },
+              {
+                ok: diagnostics.codePresentEnBase,
+                label: 'Code d\'activation présent en base',
+                fix: 'Aucun code d\'activation n\'est enregistré. Régénérez-en un ci-dessous.',
+              },
+              {
+                ok: !diagnostics.compteDejaActif,
+                label: 'Compte non encore activé (user_id vide)',
+                fix: 'La famille a déjà un compte actif (user_id rempli). Si le parent a oublié son mot de passe, utilisez la réinitialisation. Si vous voulez forcer une réactivation, régénérez un code (cela efface le user_id).',
+                warnIfFail: true,
+              },
+            ]
+
+            const allOk = checks.every((c) => c.ok)
+
+            return (
+              <div>
+                {/* En-tête famille */}
+                <div className="panel" style={{ marginBottom: 12, borderLeft: '4px solid var(--blue)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <strong style={{ fontSize: '1.1rem' }}>{famille.nom_parent}</strong>
+                      <div className="muted small" style={{ marginTop: 4 }}>
+                        📞 0{famille.telephone} &nbsp;·&nbsp; Email auth : <code>{emailAttendu}</code>
+                      </div>
+                      {famille.cree_le && (
+                        <div className="muted small">
+                          Inscrit le : {new Date(famille.cree_le).toLocaleDateString('fr-FR')}
+                        </div>
+                      )}
+                    </div>
+                    <span className={'tag ' + (famille.user_id ? 'ok' : 'bad')} style={{ alignSelf: 'flex-start' }}>
+                      {famille.user_id ? '🟢 Compte activé' : '🟡 En attente d\'activation'}
+                    </span>
+                  </div>
+
+                  {/* Code d'activation */}
+                  <div style={{ marginTop: 14, background: 'var(--paper)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                    <div>
+                      <div className="muted small" style={{ marginBottom: 2 }}>Code d'activation en base</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, letterSpacing: '0.15em', color: diagnostics.codePresentEnBase ? 'var(--blue)' : 'var(--red)' }}>
+                        {code}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {diagnostics.codePresentEnBase && (
+                        <button
+                          className="btn ghost small"
+                          onClick={() => { navigator.clipboard.writeText(code); alert(`Code ${code} copié !`) }}
+                        >
+                          📋 Copier
+                        </button>
+                      )}
+                      <button
+                        className="btn small"
+                        style={{ background: 'var(--red)', color: '#fff' }}
+                        onClick={() => handleDiagRegenerer(famille.id)}
+                      >
+                        🔄 Régénérer le code
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Checklist diagnostics */}
+                <div className="panel" style={{ marginBottom: 12 }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: '1rem' }}>Checklist de diagnostic</h3>
+                  {checks.map((c, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                      <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>{c.ok ? '✅' : c.warnIfFail ? '⚠️' : '❌'}</span>
+                      <div>
+                        <div className="small" style={{ fontWeight: 600 }}>{c.label}</div>
+                        {!c.ok && <div className="small muted" style={{ marginTop: 2 }}>{c.fix}</div>}
+                      </div>
+                    </div>
+                  ))}
+                  {allOk && (
+                    <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--green-soft)', borderRadius: 8, color: 'var(--green)', fontSize: '0.9rem', fontWeight: 600 }}>
+                      ✅ Tout semble correct en base. Si le parent a toujours l'erreur, vérifiez qu'il saisit exactement le numéro <strong>0{famille.telephone}</strong> et le code <strong>{code}</strong>.
+                    </div>
+                  )}
+                </div>
+
+                {/* Élèves rattachés */}
+                <div className="panel" style={{ marginBottom: 12 }}>
+                  <h3 style={{ margin: '0 0 10px', fontSize: '1rem' }}>Élève(s) rattaché(s) ({eleves.length})</h3>
+                  {!eleves.length ? (
+                    <p className="small muted">Aucun élève. La RPC <code>activer_compte</code> retournera une erreur car elle ne trouve pas d'enfant lié à cette famille.</p>
+                  ) : eleves.map((e) => (
+                    <div key={e.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 10px', background: 'var(--paper)', borderRadius: 8, marginBottom: 6 }}>
+                      <span>🎓</span>
+                      <span><strong>{e.prenom} {e.nom}</strong> <span className="tag info" style={{ marginLeft: 6 }}>{e.classe}</span></span>
+                      <span className="muted small" style={{ marginLeft: 'auto' }}>Matr: {e.matricule}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Envoyer WhatsApp avec le bon code */}
+                {diagnostics.codePresentEnBase && eleves.length > 0 && (
+                  <div className="panel" style={{ background: 'var(--green-soft)', border: '1px solid var(--green)' }}>
+                    <h3 style={{ margin: '0 0 8px', color: 'var(--green)', fontSize: '1rem' }}>📱 Renvoyer le message d'activation</h3>
+                    <p className="small muted" style={{ marginBottom: 10 }}>
+                      Envoyez à nouveau le message complet au parent avec le code actuel.
+                    </p>
+                    <a
+                      className="btn"
+                      href={waLink(famille.telephone, messageWhatsApp(famille, eleves[0], code))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ background: '#25D366', color: '#fff', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                      📱 Ouvrir WhatsApp avec le message
+                    </a>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* ==================== TAB 5 : GUIDE & SECRETS ==================== */}
       {tab === 'aide' && (
         <div>
           <div className="panel">
